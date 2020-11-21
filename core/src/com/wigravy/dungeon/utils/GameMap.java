@@ -1,4 +1,4 @@
-package com.wigravy.dungeon;
+package com.wigravy.dungeon.utils;
 
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
