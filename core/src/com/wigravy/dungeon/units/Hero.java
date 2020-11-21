@@ -1,96 +1,101 @@
 package com.wigravy.dungeon.units;
 
 import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
-import com.badlogic.gdx.graphics.g2d.TextureRegion;
-import com.badlogic.gdx.math.Vector2;
-import com.wigravy.dungeon.controllers.ProjectileController;
-import com.wigravy.dungeon.utils.FiringMode;
+import com.wigravy.dungeon.GameMap;
+import com.wigravy.dungeon.controllers.GameController;
 
-public class Hero {
-    private ProjectileController projectileController;
-    private Vector2 position;
-    private TextureRegion texture;
-    private float speed;
-    private FiringMode firingMode;
-    private Vector2 lastPosition;
+public class Hero extends Unit {
+    private float movementTime;
+    private float movementMaxTime;
+    private int targetX, targetY;
+    private int experience;
 
-    public Hero(TextureAtlas atlas, ProjectileController projectileController) {
-        this.position = new Vector2(100, 100);
-        this.texture = atlas.findRegion("tank");
-        this.projectileController = projectileController;
-        this.speed = 50.0f;
-        this.firingMode = FiringMode.SINGLE_SHOOT;
-        this.lastPosition = new Vector2();
+    public Hero(TextureAtlas atlas, GameController gameController) {
+        super(gameController, 1, 1, 10);
+        this.texture = atlas.findRegion("knight");
+        this.textureHp = atlas.findRegion("hp");
+        this.movementMaxTime = 0.2f;
+        this.targetX = cellX;
+        this.targetY = cellY;
+        this.experience = 0;
+        this.maxActionPoints = 5;
+        this.actionPoints = maxActionPoints;
     }
 
+    public void addExperience(int experience) {
+        this.experience += experience;
+    }
+
+    public void resetMovePoints() {
+        this.actionPoints = maxActionPoints;
+    }
+
+    @Override
     public void update(float dt) {
-        move(dt);
-        checkPosition();
-        if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
-            fire();
-        }
-        if (Gdx.input.isKeyJustPressed(Input.Keys.Q)) {
-            switchFiringMode();
-        }
+        checkMovement(dt);
     }
 
-    public void switchFiringMode() {
-        if (firingMode == FiringMode.SINGLE_SHOOT) {
-            firingMode = FiringMode.DOUBLE_SHOOT;
-        } else {
-            firingMode = FiringMode.SINGLE_SHOOT;
-        }
+    public boolean isStayStill() {
+        return cellY == targetY && cellX == targetX;
     }
 
-    public void fire() {
-        if (firingMode == FiringMode.SINGLE_SHOOT) {
-            projectileController.activate(position.x, position.y, lastPosition.x, lastPosition.y);
-        } else {
-            if (lastPosition.y == 0) {
-                projectileController.activate(position.x, position.y, lastPosition.x, lastPosition.y + 25);
-                projectileController.activate(position.x, position.y, lastPosition.x, lastPosition.y - 25);
-            } else {
-                projectileController.activate(position.x, position.y, lastPosition.x + 25, lastPosition.y);
-                projectileController.activate(position.x, position.y, lastPosition.x - 25, lastPosition.y);
+    public void checkMovement(float dt) {
+        if (actionPoints == 0) {
+            resetMovePoints();
+        }
+
+        if (Gdx.input.justTouched() && isStayStill()) {
+            if (Math.abs(gameController.getCursorX() - cellX) + Math.abs(gameController.getCursorY() - cellY) == 1) {
+                targetX = gameController.getCursorX();
+                targetY = gameController.getCursorY();
+            }
+        }
+
+        Monster monster = gameController.getMonsterController().getMonsterInCell(targetX, targetY);
+
+        if (monster != null) {
+            targetX = cellX;
+            targetY = cellY;
+            if (monster.takeDamage(1)) {
+                addExperience(1);
+            }
+            actionPoints--;
+        }
+
+        if (!gameController.getGameMap().isCellPassable(targetX, targetY)) {
+            targetX = cellX;
+            targetY = cellY;
+        }
+
+        if (!isStayStill()) {
+            movementTime += dt;
+            if (movementTime > movementMaxTime) {
+                movementTime = 0;
+                cellX = targetX;
+                cellY = targetY;
+                actionPoints--;
             }
         }
     }
 
-    public void checkPosition() {
-        if (position.x < 0.0f) {
-            position.x = 0.0f;
-        }
-        if (position.x > Gdx.graphics.getWidth()) {
-            position.x = Gdx.graphics.getWidth();
-        }
-        if (position.y < 0.0f) {
-            position.y = 0.0f;
-        }
-        if (position.y > Gdx.graphics.getHeight()) {
-            position.y = Gdx.graphics.getHeight();
-        }
-    }
-
-    public void move(float dt) {
-        if (Gdx.input.isKeyPressed(Input.Keys.D)) {
-            position.x += speed * dt;
-            lastPosition.set(200, 0);
-        } else if (Gdx.input.isKeyPressed(Input.Keys.A)) {
-            position.x -= speed * dt;
-            lastPosition.set(-200, 0);
-        } else if (Gdx.input.isKeyPressed(Input.Keys.W)) {
-            position.y += speed * dt;
-            lastPosition.set(0, 200);
-        } else if (Gdx.input.isKeyPressed(Input.Keys.S)) {
-            position.y -= speed * dt;
-            lastPosition.set(0, -200);
-        }
-    }
-
+    @Override
     public void render(SpriteBatch batch) {
-        batch.draw(texture, position.x - 20, position.y - 20);
+        float px = cellX * GameMap.CELL_SIZE;
+        float py = cellY * GameMap.CELL_SIZE;
+        if (!isStayStill()) {
+            px = cellX * GameMap.CELL_SIZE + (targetX - cellX) * (movementTime / movementMaxTime) * GameMap.CELL_SIZE;
+            py = cellY * GameMap.CELL_SIZE + (targetY - cellY) * (movementTime / movementMaxTime) * GameMap.CELL_SIZE;
+        }
+        font.draw(batch, String.format("AP: %d / %d", actionPoints, maxActionPoints), px, py);
+        batch.draw(texture, px, py);
+        batch.setColor(0.0f, 0.0f, 0.0f, 1.0f);
+        batch.draw(textureHp, px + 1, py + 51, 58, 10);
+        batch.setColor(0.7f, 0.0f, 0.0f, 1.0f);
+        batch.draw(textureHp, px + 2, py + 52, 56, 8);
+        batch.setColor(0.0f, 1.0f, 0.0f, 1.0f);
+        batch.draw(textureHp, px + 2, py + 52, (float) currentHp / maxHp * 56, 8);
+        batch.setColor(1.0f, 1.0f, 1.0f, 1.0f);
     }
 }
