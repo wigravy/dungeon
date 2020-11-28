@@ -1,60 +1,45 @@
 package com.wigravy.dungeon.controllers;
 
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
-import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.wigravy.dungeon.units.Monster;
+import com.wigravy.dungeon.utils.ObjectPool;
 
-public class MonsterController {
-    private static final int MAX_MONSTERS = 100;
-
+public class MonsterController extends ObjectPool<Monster> {
     private GameController gc;
-    private Monster[] monsters;
 
-    public Monster[] getMonsters() {
-        return monsters;
-    }
-
-    public MonsterController(GameController gc, TextureAtlas atlas) {
+    public MonsterController(GameController gc) {
         this.gc = gc;
-        this.monsters = new Monster[MAX_MONSTERS];
-        for (int i = 0; i < monsters.length; i++) {
-            monsters[i] = new Monster(atlas, gc);
-        }
     }
 
-    public void activate(int cellX, int cellY) {
-        for (Monster m : monsters) {
-            if (!m.isActive()) {
-                m.activate(cellX, cellY);
-                return;
-            }
-        }
+    @Override
+    protected Monster newObject() {
+        return new Monster(gc);
+    }
+
+    public Monster activate(int cellX, int cellY) {
+        return getActiveElement().activate(cellX, cellY);
     }
 
     public Monster getMonsterInCell(int cellX, int cellY) {
-        for (Monster m : monsters) {
-            if (m.isActive()) {
-                if (m.getCellX() == cellX && m.getCellY() == cellY) {
-                    return m;
-                }
+        for (Monster m : getActiveList()) {
+            if (m.getCellX() == cellX && m.getCellY() == cellY) {
+                return m;
             }
         }
         return null;
     }
 
     public void update(float dt) {
-        for (Monster m : monsters) {
-            if (m.isActive()) {
-                m.update(dt);
-            }
+        for (Monster m : getActiveList()) {
+            m.update(dt);
         }
+        checkPool();
     }
 
-    public void render(SpriteBatch batch) {
-        for (Monster m : monsters) {
-            if (m.isActive()) {
-                m.render(batch);
-            }
+    public void render(SpriteBatch batch, BitmapFont font18) {
+        for (Monster m : getActiveList()) {
+            m.render(batch, font18);
         }
     }
 }
