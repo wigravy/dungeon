@@ -1,56 +1,78 @@
 package com.wigravy.dungeon.controllers;
 
 import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.graphics.g2d.TextureAtlas;
-import com.wigravy.dungeon.GameMap;
-import com.wigravy.dungeon.units.Hero;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.math.Vector2;
+import com.wigravy.dungeon.gameWorld.GameMap;
+import com.wigravy.dungeon.screens.ScreenManager;
+import lombok.Getter;
 
+@Getter
 public class GameController {
-    ProjectileController projectileController;
-    private Hero hero;
-    private MonsterController monsterController;
+    public static final int INITIAL_MONSTERS_COUNT = 3;
+    public static final int TURNS_COUNT = 5;
+
+    private SpriteBatch batch;
+    private ProjectileController projectileController;
+    private UnitController unitController;
     private GameMap gameMap;
 
+    private Vector2 mouse;
+    private Vector2 pressedMouse;
+
     private int cursorX, cursorY;
+    private int round;
 
-    public ProjectileController getProjectileController() {
-        return projectileController;
+    public GameController(SpriteBatch batch) {
+        this.batch = batch;
+        this.mouse = new Vector2(0, 0);
+        this.pressedMouse = new Vector2(0, 0);
+        this.gameMap = new GameMap();
+        this.unitController = new UnitController(this);
+        this.projectileController = new ProjectileController();
+        this.unitController.init(INITIAL_MONSTERS_COUNT);
+        this.round = 1;
     }
 
-    public Hero getHero() {
-        return hero;
+    public void roundUp() {
+        round++;
+        unitController.startRound();
+        if (round % 3 == 0) {
+            unitController.createMonsterInRandomCell();
+        }
     }
 
-    public MonsterController getMonsterController() {
-        return monsterController;
-    }
-
-    public GameMap getGameMap() {
-        return gameMap;
-    }
-
-    public int getCursorX() {
-        return cursorX;
-    }
-
-    public int getCursorY() {
-        return cursorY;
-    }
-
-    public GameController(TextureAtlas atlas) {
-        this.projectileController = new ProjectileController(atlas);
-        this.hero = new Hero(atlas, this);
-        this.monsterController = new MonsterController(atlas, this);
-        this.gameMap = new GameMap(atlas);
-        this.monsterController.activate(5, 5);
-        this.monsterController.activate(8, 8);
+    public boolean isCellEmpty(int cx, int cy) {
+        return gameMap.isCellPassable(cx, cy) && unitController.isCellFree(cx, cy);
     }
 
     public void update(float dt) {
-        cursorX = Gdx.input.getX() / GameMap.CELL_SIZE;
-        cursorY = (720 - Gdx.input.getY()) / GameMap.CELL_SIZE;
+        checkMouse();
         projectileController.update(dt);
-        hero.update(dt);
-        monsterController.update(dt);
+        unitController.update(dt);
+    }
+
+    public void checkMouse() {
+        mouse.set(Gdx.input.getX(), Gdx.input.getY());
+        ScreenManager.getInstance().getViewport().unproject(mouse);
+
+        if (Gdx.input.isTouched() && Gdx.input.isButtonPressed(Input.Buttons.RIGHT)) {
+            float camX = ScreenManager.getInstance().getCamera().position.x;
+            float camY = ScreenManager.getInstance().getCamera().position.y;
+
+            camX += pressedMouse.x - mouse.x;
+            camY += pressedMouse.y - mouse.y;
+
+            mouse.x += pressedMouse.x - mouse.x;
+            mouse.y += pressedMouse.y - mouse.y;
+
+            ScreenManager.getInstance().pointCameraTo(camX, camY);
+        }
+
+        cursorX = (int) (mouse.x / GameMap.CELL_SIZE);
+        cursorY = (int) (mouse.y / GameMap.CELL_SIZE);
+
+        pressedMouse.set(mouse);
     }
 }
